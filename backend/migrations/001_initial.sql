@@ -2,3 +2,5 @@
 -- traverse_studies(name UNIQUE); traverse_points(study_id,reference UNIQUE,position UNIQUE,thickness)
 -- frequency_plans(frequencies JSON,permutations,seed); spectrum_runs(source_snapshot JSON,plan_snapshot JSON,result JSON)
 -- weave_notes(result_snapshot JSON), users, audit_logs. Numeric mappings use Double(asdecimal=False).
+-- sensitivity_analyses(run_id FK, source_snapshot/plan_snapshot/baseline/result JSON): leave-one-out
+-- branches recompute the frozen grid and keep every branch's complete null maxima; degenerate branches keep reasons.

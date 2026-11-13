@@ -20,9 +20,9 @@ docker compose exec -T backend python -m scripts.seed_demo
 
 |账号 / 密码|页面和权限|典型动作|
 |---|---|---|
-|admin@lingdu.demo / Lingdu2026!|六页、写入、审批|批准或退回独立织片补测|
-|analyst@lingdu.demo / Lingdu2026!|六页、导入/修订/计划/运行/说明|冻结网格、真队列；审批403|
-|viewer@lingdu.demo / Lingdu2026!|六页只读、批准CSV|阅读全谱/窗口/全局p并导出；写入403|
+|admin@lingdu.demo / Lingdu2026!|七页、写入、审批|批准或退回独立织片补测|
+|analyst@lingdu.demo / Lingdu2026!|七页、导入/修订/计划/运行/留一/说明|冻结网格、真队列；审批403|
+|viewer@lingdu.demo / Lingdu2026!|七页只读、批准CSV|阅读全谱/窗口/全局p并导出；写入403|
 
 `.env.example`列出三个端口、POSTGRES_DB/USER/PASSWORD、JWT_SECRET、SEED_DEMO、RATE_LIMIT_WRITES（默认60）。演示密码和JWT secret仅用于本地，部署须设置自己的值。首次启动自动seed，独立重复执行也幂等，不覆盖用户测点和说明。
 
@@ -37,8 +37,9 @@ Compose恰好frontend/backend/worker/db/redis五服务，各有healthcheck。Ngi
 5. 从该测线的冻结计划排队。提交时源点和计划都复制进run，worker只使用这两份快照。
 6. A研究120点/201频点，选中18mm、功率.933678718814。全网格null最大值没有达到观测值，p=(0+1)/(199+1)=.005，而不是对挑出的频率报单频p。
 7. 读选频率带截距拟合、相对于x₀的幅度/相位、全部谱与采样窗口函数，核对混叠和泄漏。网格间距不是周期置信区间。
-8. 在“织片补测”写独立织片来源、保持预设网格和不等距补测位置的行动，不认定织机成因。
-9. 方绎批准或退回；苏纾下载批准全谱CSV。重复审批409，事后改点不能改写冻结运行或批准快照；过程留痕保留导入、计划、队列、审阅和导出。
+8. 怀疑谱峰被单个异常测点撑起时，从已完成研究发起逐点留一敏感性分析：每次删去一个测点，用原冻结计划重算全谱与全局p，保留各分支完整零分布；退化分支列出理由。页面比较删点前后的周期、功率与p变化。
+9. 在“织片补测”写独立织片来源、保持预设网格和不等距补测位置的行动，不认定织机成因。
+10. 方绎批准或退回；苏纾下载批准全谱CSV。重复审批409，事后改点不能改写冻结运行、留一分析或批准快照；过程留痕保留导入、计划、队列、留一、审阅和导出。
 
 ## 数值口径
 
@@ -52,13 +53,15 @@ cos/sin列各减其均值形成A，QR分解A=QR。对中心化厚度y_c，解释
 
 每个频率的QR只由x决定，整条任务缓存一次。B199–499次固定x打乱y标签，每次仍重新计算完整纳入网格的功率并取最大，保存所有null最大值。`p_global=(1+#nullmax≥observedmax−tol)/(B+1)`，预先tol=1e-12保守计入数值并列；最大峰频率在同tol并列时取较低频率。+1使B199的最小Monte Carlo p=.005。
 
+逐点留一敏感性分析复制已完成研究的测点与计划快照，逐次删去一个测点，用同一冻结网格、B与seed重算全谱和全局p，各分支保留完整null最大值。同一seed与相同n−1使各分支置换索引序列一致，分支间差异来自删点而非随机数。删点后不足4点、恒定厚度RSS0=0或全频率退化的分支标记退化并保留理由，不补造数值；其余分支结果完整保留。分析只读提交时快照：源测点后续修订不改写已发起的留一分析，并发发起的多份分析各自持有自己的快照；原研究运行结果与补测说明不被改写。
+
 采样窗口是`|mean(exp(i2πf(x−x₀)))|²`，只由位置决定，用来核对采样结构；它不能消除混叠。默认网格Δf约.00044444444 cycles/mm，不等于周期CI。该全局p只对预先冻结的搜索范围、iid可交换且同方差误差的无周期null解释，不是制造原因、在线诊断或任意后验挑范围的确认检验。
 
 ## 实体、界面与校验
 
-79个有职责的Python/TS/TSX/CSS文件（不含空包、依赖和dist）。五实体TraverseStudy → TraversePoint → FrequencyPlan → SpectrumRun → WeaveNote贯穿ORM/schema/service/routes、前端API/store和六页：谱峰总览、不等距测线、频率计划、完整谱与全局p、织片补测、过程留痕。
+85个有职责的Python/TS/TSX/CSS文件（不含空包、依赖和dist）。六实体TraverseStudy → TraversePoint → FrequencyPlan → SpectrumRun → WeaveNote与SensitivityAnalysis（留一分析，挂在已完成运行下）贯穿ORM/schema/service/routes、前端API/store和七页：谱峰总览、不等距测线、频率计划、完整谱与全局p、留一敏感性、织片补测、过程留痕。
 
-前端 `src/{api,stores,types,components/common,hooks,pages,router,utils,constants}`；后端 `src/{routes,controllers,services,models,schemas,middlewares,utils,constants,config}`，另scripts/seed_demo.py与migrations/。SpectrumPlot、TracePlot、PeakSummary、RunList在多页复用，PermutationPanel只画后端实际null频数；useTask/useRoute和format处理交互。React挂载id=root与createRoot一致。
+前端 `src/{api,stores,types,components/common,hooks,pages,router,utils,constants}`；后端 `src/{routes,controllers,services,models,schemas,middlewares,utils,constants,config}`，另scripts/seed_demo.py与migrations/。SpectrumPlot、TracePlot、PeakSummary、RunList、SensitivityPlot在多页复用，PermutationPanel只画后端实际null频数；useTask/useRoute和format处理交互。React挂载id=root与createRoot一致。
 
 Role/RunStatus/NoteStatus位于 `backend/src/constants/enums.py`，前端对应 `frontend/src/constants/enums.ts`。JWT、审计、RequestID/Error/Redis写限流三个中间件形成横切链路。配额按令牌摘要或无令牌IP分钟计数，默认60写请求，429含Retry-After；计数服务不可用503，健康GET不计。审批行锁使draft只能审一次，CSV取冻结result_snapshot。
 
